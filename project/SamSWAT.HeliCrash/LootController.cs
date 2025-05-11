@@ -4,6 +4,7 @@ using EFT.Interactive;
 using EFT.InventoryLogic;
 using SamSWAT.HeliCrash.ArysReloaded.Utils;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -58,9 +59,13 @@ internal class LootController
 			ResourceKey[] resources;
 			if (containerItem is ContainerData container)
 			{
-				resources = container.GetAllItemsFromCollection()
-					.SelectMany(item => item.Template.AllResources)
-					.ToArray();
+				List<Item> items = container.GetAllItemsFromCollection().ToList();
+				for (var i = 0; i < items.Count; i++)
+				{
+					items[i].SpawnedInSession = true;
+				}
+				
+				resources = items.SelectMany(item => item.Template.AllResources).ToArray();
 			}
 			else
 			{
