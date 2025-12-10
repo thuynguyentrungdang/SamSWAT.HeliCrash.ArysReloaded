@@ -32,15 +32,13 @@ public class ApplicationLifetimeScope : LifetimeScope
         builder.Register<Logger>(Lifetime.Singleton);
         builder.Register<GetLocalePatch>(Lifetime.Singleton);
         builder.Register<RaidLifetimeScopeController>(Lifetime.Singleton);
-        builder.Register<RaidStartPatch>(Lifetime.Singleton);
-        builder.Register<RaidEndPatch>(Lifetime.Singleton);
+        builder.Register<RaidLoadScreenPatch>(Lifetime.Singleton);
         builder.Register<HeliCrashLocationService>(Lifetime.Singleton);
         builder.RegisterBuildCallback(container =>
         {
             container.Resolve<GetLocalePatch>().Enable();
             container.Resolve<RaidLifetimeScopeController>().Initialize(this);
-            container.Resolve<RaidStartPatch>().Enable();
-            container.Resolve<RaidEndPatch>().Enable();
+            container.Resolve<RaidLoadScreenPatch>().Enable();
         });
     }
 }

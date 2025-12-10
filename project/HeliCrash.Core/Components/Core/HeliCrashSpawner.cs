@@ -1,15 +1,16 @@
 ﻿using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Comfort.Common;
 using Cysharp.Threading.Tasks;
 using EFT;
+using EFT.UI;
 using JetBrains.Annotations;
 using SamSWAT.HeliCrash.ArysReloaded.Models;
 using SamSWAT.HeliCrash.ArysReloaded.Utils;
 using UnityEngine;
 using UnityEngine.AI;
-using VContainer.Unity;
 using Logger = SamSWAT.HeliCrash.ArysReloaded.Utils.Logger;
 
 namespace SamSWAT.HeliCrash.ArysReloaded;
@@ -20,11 +21,12 @@ public class HeliCrashSpawner(
     Logger logger,
     HeliCrashLocationService locationService,
     LootContainerFactory lootContainerFactory
-) : IAsyncStartable
+) : IDisposable
 {
+    private AssetBundle _heliBundle;
     private GameObject _heliPrefab;
 
-    public async UniTask StartAsync(CancellationToken cancellationToken = default)
+    public async UniTask StartAsync(Task loadScreenTask)
     {
         try
         {
@@ -33,16 +35,13 @@ public class HeliCrashSpawner(
                 logger.LogInfo("Spawning heli crash site(s)");
             }
 
-            string heliBundlePath = Path.Combine(
-                FileUtil.Directory,
-                "sikorsky_uh60_blackhawk.bundle"
-            );
-            _heliPrefab = await LoadPrefabAsync(heliBundlePath, cancellationToken);
+            GameWorld gameWorld = Singleton<GameWorld>.Instance;
+            CancellationToken cancellationToken = gameWorld.destroyCancellationToken;
 
-            await SpawnCrashSite(
-                Singleton<GameWorld>.Instance.MainPlayer.Location,
-                cancellationToken
-            );
+            await UniTask.SwitchToMainThread(cancellationToken);
+            await SpawnCrashSite(gameWorld.MainPlayer.Location, cancellationToken);
+
+            await loadScreenTask;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -51,8 +50,19 @@ public class HeliCrashSpawner(
         }
     }
 
+    public void Dispose()
+    {
+        if (_heliBundle != null)
+        {
+            _heliBundle.Unload(true);
+        }
+    }
+
     private async UniTask SpawnCrashSite(string map, CancellationToken cancellationToken)
     {
+        string heliBundlePath = Path.Combine(FileUtil.Directory, "sikorsky_uh60_blackhawk.bundle");
+        _heliPrefab = await LoadPrefabAsync(heliBundlePath, cancellationToken);
+
         LocationList crashLocations = locationService.GetCrashLocations(map);
         if (crashLocations == null)
         {
@@ -154,12 +164,24 @@ public class HeliCrashSpawner(
             heliLocations.Rotations
         );
 
+        if (configService.SpawnAllCrashSites.Value)
+        {
+            SetMatchmakerStatus("Spawning all HeliCrash sites", 0f);
+        }
+
         while (!asyncOperation.isDone)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            // TODO: Update loading screen status with progress
+            if (configService.SpawnAllCrashSites.Value)
+            {
+                SetMatchmakerStatus("Spawning all HeliCrash sites", asyncOperation.progress);
+            }
             await UniTask.Yield(cancellationToken);
+        }
+
+        if (configService.SpawnAllCrashSites.Value)
+        {
+            SetMatchmakerStatus("Spawning all HeliCrash sites", 1f);
         }
 
         GameObject[] choppas = asyncOperation.Result;
@@ -173,7 +195,7 @@ public class HeliCrashSpawner(
 
     private async UniTask<GameObject> LoadPrefabAsync(
         string bundlePath,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken = default
     )
     {
         AssetBundleCreateRequest bundleLoadRequest = AssetBundle.LoadFromFileAsync(bundlePath);
@@ -204,9 +226,21 @@ public class HeliCrashSpawner(
             return null;
         }
 
+        _heliBundle = bundle;
         requestedGo.SetActive(false);
-        bundle.Unload(false);
 
         return requestedGo;
+    }
+
+    private static void SetMatchmakerStatus(string status, float? progress)
+    {
+        if (HeliCrashPlugin.FikaEnabled)
+        {
+            Singleton<AbstractGame>.Instance.SetMatchmakerStatus(status, progress);
+        }
+        else
+        {
+            Singleton<MenuUI>.Instance.MatchmakerTimeHasCome.method_7(status, progress);
+        }
     }
 }
