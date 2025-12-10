@@ -1,24 +1,35 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
 using Comfort.Common;
+using Cysharp.Threading.Tasks;
 using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
+using JetBrains.Annotations;
 using SamSWAT.HeliCrash.ArysReloaded.Utils;
 using static SPT.Reflection.Utils.ClientAppUtils;
 
 namespace SamSWAT.HeliCrash.ArysReloaded;
 
-public class LootContainerFactory
+[UsedImplicitly]
+public class LootContainerFactory(
+    ConfigurationService configService,
+    Logger logger,
+    LocalizationService localizationService
+)
 {
     private readonly ProfileEndpointFactoryAbstractClass _profileEndpointFactory =
         (ProfileEndpointFactoryAbstractClass)GetClientApp().GetClientBackEndSession();
 
     private readonly List<ResourceKey> _temporaryResourceList = new(100);
 
-    public async Task CreateContainer(LootableContainer container, string lootTemplateId = null)
+    public async UniTask CreateContainer(
+        LootableContainer container,
+        string lootTemplateId = null,
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -28,7 +39,7 @@ public class LootContainerFactory
 
             if (lootResponse?.data == null)
             {
-                if (HeliCrashPlugin.LoggingEnabled.Value)
+                if (configService.LoggingEnabled.Value)
                 {
                     throw new NullReferenceException("Heli crash site loot response is null");
                 }
@@ -43,21 +54,21 @@ public class LootContainerFactory
             LootItem.CreateLootContainer(
                 container,
                 containerItem,
-                LocalizationService.GetString("containerName"),
+                localizationService.Localize("containerName"),
                 Singleton<GameWorld>.Instance
             );
 
-            await AddLoot(containerItem);
+            await AddLoot(containerItem, cancellationToken);
         }
         catch (Exception ex)
         {
-            Logger.LogError(
+            logger.LogError(
                 $"Failed to create helicrash loot crate! {ex.Message}\n{ex.StackTrace}"
             );
         }
     }
 
-    private async Task AddLoot(Item containerItem)
+    private async UniTask AddLoot(Item containerItem, CancellationToken cancellationToken = default)
     {
         ResourceKey[] resources;
         if (containerItem is ContainerData container)
@@ -83,7 +94,8 @@ public class LootContainerFactory
             PoolManagerClass.PoolsCategory.Raid,
             PoolManagerClass.AssemblyType.Local,
             resources,
-            JobPriorityClass.Immediate
+            JobPriorityClass.Immediate,
+            ct: cancellationToken
         );
     }
 }

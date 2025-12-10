@@ -1,0 +1,24 @@
+using UnityEngine;
+using VContainer.Unity;
+
+namespace SamSWAT.HeliCrash.ArysReloaded;
+
+public static class LifetimeScopeExtensions
+{
+    public static TScope CreateChild<TScope>(
+        this LifetimeScope parentScope,
+        Transform parent,
+        string childScopeName = null
+    )
+        where TScope : LifetimeScope
+    {
+        var gameObject = new GameObject(childScopeName ?? "LifetimeScope (Child)");
+        gameObject.SetActive(false);
+        gameObject.transform.SetParent(parent, false);
+
+        var child = gameObject.AddComponent<TScope>();
+        child.parentReference.Object = parentScope;
+        gameObject.SetActive(true);
+        return child;
+    }
+}

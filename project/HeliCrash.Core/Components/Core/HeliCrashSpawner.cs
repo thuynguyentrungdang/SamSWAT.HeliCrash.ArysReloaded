@@ -1,84 +1,85 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Threading;
 using Comfort.Common;
 using Cysharp.Threading.Tasks;
 using EFT;
-using EFT.Airdrop;
+using JetBrains.Annotations;
 using SamSWAT.HeliCrash.ArysReloaded.Models;
 using SamSWAT.HeliCrash.ArysReloaded.Utils;
 using UnityEngine;
 using UnityEngine.AI;
+using VContainer.Unity;
+using Logger = SamSWAT.HeliCrash.ArysReloaded.Utils.Logger;
 
 namespace SamSWAT.HeliCrash.ArysReloaded;
 
-public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
+[UsedImplicitly]
+public class HeliCrashSpawner(
+    ConfigurationService configService,
+    Logger logger,
+    HeliCrashLocationService locationService,
+    LootContainerFactory lootContainerFactory
+) : IAsyncStartable
 {
-    private LootContainerFactory _lootContainerFactory;
     private GameObject _heliPrefab;
 
-    public static void TryCreate(GameWorld gameWorld)
-    {
-        string location = gameWorld.MainPlayer.Location;
-        bool crashAvailable =
-            location.ToLower() == "sandbox" || LocationScene.GetAll<AirdropPoint>().Any();
-        bool shouldSpawnCrash =
-            HeliCrashPlugin.SpawnAllCrashSites.Value
-            || BlessRNG.RngBool(HeliCrashPlugin.HeliCrashChance.Value);
-
-        if (crashAvailable && shouldSpawnCrash)
-        {
-            gameWorld.gameObject.AddComponent<HeliCrashManager>();
-        }
-    }
-
-    private async UniTaskVoid Start()
+    public async UniTask StartAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            await Initialize(Singleton<GameWorld>.Instance.MainPlayer.Location);
+            if (configService.LoggingEnabled.Value)
+            {
+                logger.LogInfo("Spawning heli crash site(s)");
+            }
+
+            string heliBundlePath = Path.Combine(
+                FileUtil.Directory,
+                "sikorsky_uh60_blackhawk.bundle"
+            );
+            _heliPrefab = await LoadPrefabAsync(heliBundlePath, cancellationToken);
+
+            await SpawnCrashSite(
+                Singleton<GameWorld>.Instance.MainPlayer.Location,
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
-            Utils.Logger.LogError(
-                $"Failed to initialize heli crash site: {ex.Message}\n{ex.StackTrace}"
-            );
+            logger.LogError($"Failed to spawn heli crash site(s): {ex.Message}\n{ex.StackTrace}");
         }
     }
 
-    private async UniTask Initialize(string location)
+    private async UniTask SpawnCrashSite(string map, CancellationToken cancellationToken)
     {
-        _lootContainerFactory = new LootContainerFactory();
-
-        List<Location> heliLocations = HeliCrashLocations.GetCrashSiteLocations(location);
-        if (heliLocations == null)
+        List<Location> crashLocations = locationService.GetCrashLocations(map);
+        if (crashLocations == null)
         {
-            Utils.Logger.LogError(
+            throw new NullReferenceException(
                 "Invalid map or crash location data, aborting heli crash initialization!"
             );
-            return;
         }
 
-        string heliBundlePath = Path.Combine(
-            HeliCrashPlugin.Directory,
-            "sikorsky_uh60_blackhawk.bundle"
-        );
-        _heliPrefab = await LoadPrefabAsync(heliBundlePath);
-
-        if (HeliCrashPlugin.SpawnAllCrashSites.Value)
+        if (configService.SpawnAllCrashSites.Value)
         {
             // Enable crash site objects in batches to avoid freezes/crashing
-            await BatchEnable(heliLocations);
+            await BatchEnable(crashLocations, cancellationToken: cancellationToken);
         }
         else
         {
-            Location chosenLocation = heliLocations.SelectRandom();
+            Location chosenLocation = crashLocations.SelectRandom();
+
             bool spawnWithLoot =
                 !chosenLocation.Unreachable
-                && BlessRNG.RngBool(HeliCrashPlugin.CrashHasLootChance.Value);
+                && BlessRNG.RngBool(configService.CrashHasLootChance.Value);
 
-            GameObject heli = await CreateCrashSite(chosenLocation, spawnWithLoot);
+            GameObject heli = await CreateCrashSite(
+                chosenLocation,
+                spawnWithLoot,
+                cancellationToken: cancellationToken
+            );
+
             heli.SetActive(true);
         }
     }
@@ -86,10 +87,11 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
     private async UniTask<GameObject> CreateCrashSite(
         Location location,
         bool withLoot = false,
-        bool carveMesh = true
+        bool carveMesh = true,
+        CancellationToken cancellationToken = default
     )
     {
-        GameObject choppa = Instantiate(
+        GameObject choppa = UnityEngine.Object.Instantiate(
             _heliPrefab,
             location.Position,
             Quaternion.Euler(location.Rotation)
@@ -103,7 +105,10 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
         var container = choppa.GetComponentInChildren<EFT.Interactive.LootableContainer>();
         if (withLoot)
         {
-            await _lootContainerFactory.CreateContainer(container);
+            await lootContainerFactory.CreateContainer(
+                container,
+                cancellationToken: cancellationToken
+            );
         }
         else
         {
@@ -111,10 +116,9 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
             container.transform.parent.gameObject.SetActive(false);
         }
 
-        if (HeliCrashPlugin.LoggingEnabled.Value)
+        if (configService.LoggingEnabled.Value)
         {
-            var logMessage = $"Heli crash site spawned at {location.Position.ToString()}";
-            Utils.Logger.LogWarning(logMessage);
+            logger.LogWarning($"Heli crash site spawned at {location.Position.ToString()}");
         }
 
         return choppa;
@@ -133,7 +137,11 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
         navMeshObstacle.carving = true;
     }
 
-    private async UniTask BatchEnable(List<Location> heliLocations, int batchSize = 10)
+    private async UniTask BatchEnable(
+        List<Location> heliLocations,
+        int batchSize = 10,
+        CancellationToken cancellationToken = default
+    )
     {
         int locationCount = heliLocations.Count;
         var count = 0;
@@ -142,7 +150,7 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
         {
             Location location = heliLocations[i];
 
-            GameObject choppa = Instantiate(
+            GameObject choppa = UnityEngine.Object.Instantiate(
                 _heliPrefab,
                 location.Position,
                 Quaternion.Euler(location.Rotation)
@@ -158,36 +166,41 @@ public class HeliCrashManager : MonoBehaviourSingleton<HeliCrashManager>
             if (++count >= batchSize)
             {
                 count = 0;
-                await UniTask.NextFrame();
+                await UniTask.NextFrame(cancellationToken);
             }
         }
+
+        logger.LogInfo("Successfully spawned all heli crash sites");
     }
 
-    private static async UniTask<GameObject> LoadPrefabAsync(string bundlePath)
+    private async UniTask<GameObject> LoadPrefabAsync(
+        string bundlePath,
+        CancellationToken cancellationToken
+    )
     {
         AssetBundleCreateRequest bundleLoadRequest = AssetBundle.LoadFromFileAsync(bundlePath);
         while (!bundleLoadRequest.isDone)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken);
         }
 
         AssetBundle bundle = bundleLoadRequest.assetBundle;
         if (bundle == null)
         {
-            Utils.Logger.LogError("Failed to load UH-60 Blackhawk bundle");
+            logger.LogError("Failed to load UH-60 Blackhawk bundle");
             return null;
         }
 
         AssetBundleRequest assetLoadRequest = bundle.LoadAllAssetsAsync<GameObject>();
         while (!assetLoadRequest.isDone)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken);
         }
 
         var requestedGo = (GameObject)assetLoadRequest.allAssets[0];
         if (requestedGo == null)
         {
-            Utils.Logger.LogError("Failed to load UH-60 Blackhawk asset");
+            logger.LogError("Failed to load UH-60 Blackhawk asset");
             return null;
         }
 

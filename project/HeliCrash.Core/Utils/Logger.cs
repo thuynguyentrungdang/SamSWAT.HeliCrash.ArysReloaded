@@ -1,41 +1,39 @@
 using BepInEx.Logging;
 using EFT.UI;
+using JetBrains.Annotations;
 
 namespace SamSWAT.HeliCrash.ArysReloaded.Utils;
 
-internal static class Logger
+[UsedImplicitly]
+public class Logger(ManualLogSource logSource, ConfigurationService configService)
 {
-	private static ManualLogSource s_logSource;
-	
-	public static void Initialize(ManualLogSource logSource)
-	{
-		s_logSource = logSource;
-	}
-	
-	public static void LogInfo(string message)
-	{
-		s_logSource.LogInfo(message);
-		if (HeliCrashPlugin.LoggingEnabled.Value)
-		{
-			ConsoleScreen.Log(message);
-		}
-	}
-	
-	public static void LogWarning(string message)
-	{
-		s_logSource.LogWarning(message);
-		if (HeliCrashPlugin.LoggingEnabled.Value)
-		{
-			ConsoleScreen.LogWarning(message);
-		}
-	}
-	
-	public static void LogError(string message)
-	{
-		s_logSource.LogError(message);
-		if (HeliCrashPlugin.LoggingEnabled.Value)
-		{
-			ConsoleScreen.LogError(message);
-		}
-	}
+    public void LogInfo(string message)
+    {
+        logSource.LogInfo(message);
+
+        if (configService.LoggingEnabled.Value)
+        {
+            ConsoleScreen.Log(message);
+        }
+    }
+
+    public void LogWarning(string message)
+    {
+        logSource.LogWarning(message);
+
+        if (configService.LoggingEnabled.Value)
+        {
+            ConsoleScreen.LogWarning(message);
+        }
+    }
+
+    public void LogError(string message)
+    {
+        logSource.LogError(message);
+
+        if (configService.LoggingEnabled.Value)
+        {
+            ConsoleScreen.LogError(message);
+        }
+    }
 }
