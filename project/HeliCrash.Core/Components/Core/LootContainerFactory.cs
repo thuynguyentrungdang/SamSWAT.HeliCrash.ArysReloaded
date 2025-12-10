@@ -37,6 +37,8 @@ public class LootContainerFactory(
                 await _profileEndpointFactory.LoadLootContainerData(lootTemplateId)
             ).Value;
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (lootResponse?.data == null)
             {
                 if (configService.LoggingEnabled.Value)
@@ -60,7 +62,7 @@ public class LootContainerFactory(
 
             await AddLoot(containerItem, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(
                 $"Failed to create helicrash loot crate! {ex.Message}\n{ex.StackTrace}"

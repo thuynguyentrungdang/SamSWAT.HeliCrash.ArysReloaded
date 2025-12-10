@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Comfort.Common;
@@ -45,7 +44,7 @@ public class HeliCrashSpawner(
                 cancellationToken
             );
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError($"Failed to spawn heli crash site(s): {ex.Message}\n{ex.StackTrace}");
         }
@@ -53,7 +52,7 @@ public class HeliCrashSpawner(
 
     private async UniTask SpawnCrashSite(string map, CancellationToken cancellationToken)
     {
-        List<Location> crashLocations = locationService.GetCrashLocations(map);
+        LocationList crashLocations = locationService.GetCrashLocations(map);
         if (crashLocations == null)
         {
             throw new NullReferenceException(
@@ -63,8 +62,7 @@ public class HeliCrashSpawner(
 
         if (configService.SpawnAllCrashSites.Value)
         {
-            // Enable crash site objects in batches to avoid freezes/crashing
-            await BatchEnable(crashLocations, cancellationToken: cancellationToken);
+            await CreateAllCrashSites(crashLocations, cancellationToken);
         }
         else
         {
@@ -74,28 +72,34 @@ public class HeliCrashSpawner(
                 !chosenLocation.Unreachable
                 && BlessRNG.RngBool(configService.CrashHasLootChance.Value);
 
-            GameObject heli = await CreateCrashSite(
+            await CreateCrashSite(
                 chosenLocation,
                 spawnWithLoot,
                 cancellationToken: cancellationToken
             );
-
-            heli.SetActive(true);
         }
     }
 
-    private async UniTask<GameObject> CreateCrashSite(
+    private async UniTask CreateCrashSite(
         Location location,
         bool withLoot = false,
         bool carveMesh = true,
         CancellationToken cancellationToken = default
     )
     {
-        GameObject choppa = UnityEngine.Object.Instantiate(
+        AsyncInstantiateOperation<GameObject> asyncOperation = UnityEngine.Object.InstantiateAsync(
             _heliPrefab,
             location.Position,
             Quaternion.Euler(location.Rotation)
         );
+
+        while (!asyncOperation.isDone)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await UniTask.Yield(cancellationToken);
+        }
+
+        GameObject choppa = asyncOperation.Result[0];
 
         if (carveMesh)
         {
@@ -121,7 +125,7 @@ public class HeliCrashSpawner(
             logger.LogWarning($"Heli crash site spawned at {location.Position.ToString()}");
         }
 
-        return choppa;
+        choppa.SetActive(true);
     }
 
     private static void CarveNavMesh(GameObject choppa)
@@ -137,37 +141,30 @@ public class HeliCrashSpawner(
         navMeshObstacle.carving = true;
     }
 
-    private async UniTask BatchEnable(
-        List<Location> heliLocations,
-        int batchSize = 10,
+    private async UniTask CreateAllCrashSites(
+        LocationList heliLocations,
         CancellationToken cancellationToken = default
     )
     {
-        int locationCount = heliLocations.Count;
-        var count = 0;
+        AsyncInstantiateOperation<GameObject> asyncOperation = UnityEngine.Object.InstantiateAsync(
+            _heliPrefab,
+            heliLocations.Count,
+            heliLocations.Positions,
+            heliLocations.Rotations
+        );
 
-        for (var i = 0; i < locationCount; i++)
+        while (!asyncOperation.isDone)
         {
-            Location location = heliLocations[i];
+            cancellationToken.ThrowIfCancellationRequested();
 
-            GameObject choppa = UnityEngine.Object.Instantiate(
-                _heliPrefab,
-                location.Position,
-                Quaternion.Euler(location.Rotation)
-            );
+            // TODO: Update loading screen status with progress
+            await UniTask.Yield(cancellationToken);
+        }
 
-            choppa.SetActive(true);
-
-            if (i >= locationCount - 1)
-            {
-                break;
-            }
-
-            if (++count >= batchSize)
-            {
-                count = 0;
-                await UniTask.NextFrame(cancellationToken);
-            }
+        GameObject[] choppas = asyncOperation.Result;
+        for (var i = 0; i < choppas.Length; i++)
+        {
+            choppas[i].SetActive(true);
         }
 
         logger.LogInfo("Successfully spawned all heli crash sites");
@@ -181,6 +178,7 @@ public class HeliCrashSpawner(
         AssetBundleCreateRequest bundleLoadRequest = AssetBundle.LoadFromFileAsync(bundlePath);
         while (!bundleLoadRequest.isDone)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await UniTask.Yield(cancellationToken);
         }
 
@@ -194,6 +192,7 @@ public class HeliCrashSpawner(
         AssetBundleRequest assetLoadRequest = bundle.LoadAllAssetsAsync<GameObject>();
         while (!assetLoadRequest.isDone)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await UniTask.Yield(cancellationToken);
         }
 
