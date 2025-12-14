@@ -4,9 +4,6 @@
     <AssemblyName>SamSWAT.HeliCrash.ArysReloaded.Fika</AssemblyName>
     <TargetFramework>netstandard2.1</TargetFramework>
   </PropertyGroup>
-  <PropertyGroup>
-    <CopyToOutputDir>$(MSBuildThisFileDirectory)CopyToOutput</CopyToOutputDir>
-  </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>$(SptSharedAssembliesDir)$(SptVersion)\0Harmony.dll</HintPath>
@@ -73,12 +70,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Remove="build\**" />
+    <Compile Remove="build\**" />
+    <EmbeddedResource Remove="build\**" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Remove="References\**" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Remove="References\**" />
-  </ItemGroup>
-  <ItemGroup>
     <None Remove="References\**" />
   </ItemGroup>
   <ItemGroup>
