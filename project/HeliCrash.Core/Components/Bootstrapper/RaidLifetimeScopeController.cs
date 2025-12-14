@@ -20,7 +20,7 @@ public class RaidLifetimeScopeController
     {
         var raidLifetimeScope = _appLifetimeScope.CreateChild<RaidLifetimeScope>(
             Singleton<GameWorld>.Instance.transform,
-            childScopeName: "RaidLifetimeScope"
+            childScopeName: "HeliCrash_RaidLifetimeScope"
         );
 
         return raidLifetimeScope;
