@@ -1,7 +1,7 @@
 using UnityEngine;
 using VContainer.Unity;
 
-namespace SamSWAT.HeliCrash.ArysReloaded;
+namespace SamSWAT.HeliCrash.ArysReloaded.Utils;
 
 public static class LifetimeScopeExtensions
 {
