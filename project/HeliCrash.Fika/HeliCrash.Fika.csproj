@@ -3,6 +3,7 @@
     <RootNamespace>SamSWAT.HeliCrash.ArysReloaded.Fika</RootNamespace>
     <AssemblyName>SamSWAT.HeliCrash.ArysReloaded.Fika</AssemblyName>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <FikaReleaseArchivePath>$(DistributionDir)$(SolutionName).FikaSync-v$(Version)-SPT$(TargetSptVersion).7z</FikaReleaseArchivePath>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -82,7 +83,12 @@
   <ItemGroup>
     <ProjectReference Include="..\HeliCrash.Core\HeliCrash.Core.csproj" />
   </ItemGroup>
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <Target Name="PostBuildEvent">
     <Exec Command="copy &quot;$(TargetPath)&quot; &quot;$(SptBepInExPluginsDir)$(SolutionName)\$(TargetFileName)&quot;" />
+  </Target>
+  <Target Name="CreateFikaSyncZip" AfterTargets="PostBuildEvent">
+    <Exec
+      Command="if not &quot;$(ConfigurationName)&quot;==&quot;Debug&quot; (&#xA;    cd /D &quot;$(SptBepInExPluginsDir)..\..\&quot;&#xA;    &quot;C:\Program Files\7-Zip\7z.exe&quot; a &quot;$(FikaReleaseArchivePath)&quot; &quot;BepInEx\plugins\$(SolutionName)\$(TargetFileName)&quot;&#xA;)"
+    />
   </Target>
 </Project>

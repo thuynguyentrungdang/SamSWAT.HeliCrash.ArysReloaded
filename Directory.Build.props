@@ -11,7 +11,7 @@
     <Platforms>AnyCPU</Platforms>
     <SolutionName>SamSWAT.HeliCrash.ArysReloaded</SolutionName>
     <DistributionDir>$(MSBuildThisFileDirectory)dist\</DistributionDir>
-    <ReleaseArchive>$(DistributionDir)$(SolutionName)-v$(Version)-SPT$(TargetSptVersion).7z</ReleaseArchive>
+    <ReleaseArchivePath>$(DistributionDir)$(SolutionName)-v$(Version)-SPT$(TargetSptVersion).7z</ReleaseArchivePath>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Your SPT path -->
@@ -38,7 +38,7 @@
     <SptBepInExPatchersDir>$(SptDir)BepInEx\patchers\</SptBepInExPatchersDir>
     <SptServerModsDir>$(SptDir)SPT\user\mods\</SptServerModsDir>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <OutputPath>Build\Debug\</OutputPath>
     <Optimize>false</Optimize>
     <DebugSymbols>true</DebugSymbols>
@@ -48,19 +48,19 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn>1701;1702;0649</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'SPT-3.10 Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'SPT-3.10 Release' ">
     <OutputPath>Build\SPT-3.10\</OutputPath>
     <SptVersion>310x</SptVersion>
     <Optimize>true</Optimize>
     <NoWarn>1701;1702;0649</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'SPT-3.11 Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'SPT-3.11 Release' ">
     <OutputPath>Build\SPT-3.11\</OutputPath>
     <SptVersion>311x</SptVersion>
     <Optimize>true</Optimize>
     <NoWarn>1701;1702;0649</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'SPT-4.0 Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'SPT-4.0 Release' ">
     <OutputPath>Build\SPT-4.0\</OutputPath>
     <SptVersion>400x</SptVersion>
     <Optimize>true</Optimize>
