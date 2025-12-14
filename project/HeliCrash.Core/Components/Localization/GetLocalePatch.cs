@@ -44,7 +44,7 @@ public class GetLocalePatch : ModulePatch
         catch (Exception ex)
         {
             s_logger.LogError(
-                $"[SamSWAT.HeliCrash.ArysReloaded] Error patching {nameof(LocaleClass.ReloadBackendLocale)}: {ex.Message}\n{ex.StackTrace})"
+                $"Error patching {nameof(LocaleClass.ReloadBackendLocale)}: {ex.Message}\n{ex.StackTrace})"
             );
         }
     }
