@@ -22,7 +22,7 @@ public class HeliCrashPlugin : BaseUnityPlugin
     {
         DetectFikaAddon();
 
-        new InitializeApplicationLifetimeScopePatch(this, gameObject).Enable();
+        new InitializeApplicationLifetimeScopePatch(this, Logger, gameObject).Enable();
 
         PostAwake?.Invoke();
         PostAwake = null;
