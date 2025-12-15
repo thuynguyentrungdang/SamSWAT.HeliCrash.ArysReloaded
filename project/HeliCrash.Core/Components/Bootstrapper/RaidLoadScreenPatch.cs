@@ -40,7 +40,7 @@ public class RaidLoadScreenPatch : ModulePatch
     {
         return AccessTools.Method(
             typeof(BaseLocalGame<EftGamePlayerOwner>),
-            nameof(BaseLocalGame<>.method_7)
+            nameof(BaseLocalGame<>.method_12)
         );
     }
 
