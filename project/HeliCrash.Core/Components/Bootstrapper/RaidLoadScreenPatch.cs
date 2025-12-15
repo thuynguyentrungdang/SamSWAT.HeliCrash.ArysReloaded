@@ -49,6 +49,11 @@ public class RaidLoadScreenPatch : ModulePatch
     {
         try
         {
+            if (Singleton<GameWorld>.Instance is HideoutGameWorld)
+            {
+                return;
+            }
+
             string location = Singleton<GameWorld>.Instance.LocationId;
             LocationList crashLocationList = s_crashLocationService.GetCrashLocations(location);
 
