@@ -9,31 +9,39 @@ namespace SamSWAT.HeliCrash.ArysReloaded;
 [UsedImplicitly]
 public class LocalizationService
 {
-    private Dictionary<string, string> _locales;
+    private Dictionary<string, string> _localeMappings;
 
     public void LoadLocale(string locale)
     {
-        if (_locales != null)
+        if (_localeMappings != null)
         {
             return;
         }
 
         string path = Path.Combine(FileUtil.Directory, "Locales.jsonc");
 
-        var locales = FileUtil.LoadJson<Dictionary<string, Dictionary<string, string>>>(path);
+        var allLocaleMappings = FileUtil.LoadJson<Dictionary<string, Dictionary<string, string>>>(
+            path
+        );
 
-        _locales = locales[locale];
+        if (!allLocaleMappings.TryGetValue(locale, out Dictionary<string, string> localeMappings))
+        {
+            _localeMappings = allLocaleMappings["en"];
+            return;
+        }
+
+        _localeMappings = localeMappings;
     }
 
     public string Localize(string key)
     {
-        if (_locales == null)
+        if (_localeMappings == null)
         {
             throw new InvalidOperationException(
-                "[SamSWAT.HeliCrash.ArysReloaded] Localization mappings not yet loaded! Load it first with LocalizationService.LoadMappings()"
+                "HeliCrash localization mappings not yet loaded! Load it first with LocalizationService.LoadMappings()"
             );
         }
 
-        return _locales[key];
+        return _localeMappings[key];
     }
 }
