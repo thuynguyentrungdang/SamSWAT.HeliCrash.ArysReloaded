@@ -1,4 +1,5 @@
 using System.Threading;
+using Comfort.Common;
 using Cysharp.Threading.Tasks;
 using EFT;
 using EFT.Interactive;
@@ -10,25 +11,27 @@ using UnityEngine;
 using UnityEngine.AI;
 using Location = SamSWAT.HeliCrash.ArysReloaded.Models.Location;
 using Logger = SamSWAT.HeliCrash.ArysReloaded.Utils.Logger;
+using Object = UnityEngine.Object;
 
 namespace SamSWAT.HeliCrash.ArysReloaded;
 
 [UsedImplicitly]
-public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
+public class LocalHeliCrashSpawner : HeliCrashSpawner
 {
     private readonly ConfigurationService _configService;
     private readonly Logger _logger;
     private readonly HeliCrashLocationService _locationService;
-    private readonly ServerLootContainerFactory _lootContainerFactory;
+    private readonly LootContainerFactory _lootContainerFactory;
 
     public Location SpawnLocation { get; private set; }
     public Item ContainerItem { get; private set; }
+    public int ContainerNetId { get; private set; }
 
-    public ServerHeliCrashSpawner(
+    public LocalHeliCrashSpawner(
         ConfigurationService configService,
         Logger logger,
         HeliCrashLocationService locationService,
-        ServerLootContainerFactory lootContainerFactory
+        LootContainerFactory lootContainerFactory
     )
         : base(configService, logger)
     {
@@ -38,13 +41,10 @@ public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
         _lootContainerFactory = lootContainerFactory;
     }
 
-    protected override async UniTask SpawnCrashSite(
-        GameWorld gameWorld,
-        CancellationToken cancellationToken = default
-    )
+    protected override async UniTask SpawnCrashSite(CancellationToken cancellationToken = default)
     {
         LocationList crashLocations = _locationService.GetCrashLocations(
-            gameWorld.MainPlayer.Location
+            Singleton<GameWorld>.Instance.LocationId
         );
 
         if (_configService.SpawnAllCrashSites.Value)
@@ -81,7 +81,10 @@ public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
             choppas[i].SetActive(true);
         }
 
-        _logger.LogInfo("Successfully spawned all heli crash sites");
+        if (_configService.LoggingEnabled.Value)
+        {
+            _logger.LogInfo("Successfully spawned all heli crash sites");
+        }
     }
 
     private async UniTask CreateCrashSite(
@@ -91,19 +94,11 @@ public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
     {
         SpawnLocation = crashLocations.SelectRandom();
 
-        AsyncInstantiateOperation<GameObject> asyncOperation = Object.InstantiateAsync(
-            heliPrefab,
+        GameObject choppa = await InstantiateCrashSiteObject(
             SpawnLocation.Position,
-            Quaternion.Euler(SpawnLocation.Rotation)
+            SpawnLocation.Rotation,
+            cancellationToken
         );
-
-        while (!asyncOperation.isDone)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await UniTask.Yield(cancellationToken);
-        }
-
-        GameObject choppa = asyncOperation.Result[0];
 
         if (!_configService.SpawnAllCrashSites.Value)
         {
@@ -117,9 +112,14 @@ public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
 
         if (spawnWithLoot)
         {
+            if (_configService.LoggingEnabled.Value)
+            {
+                _logger.LogInfo("Spawning with loot!");
+            }
+
             ContainerItem = await _lootContainerFactory.RequestContainerItem(cancellationToken);
 
-            await _lootContainerFactory.CreateContainer(
+            ContainerNetId = await _lootContainerFactory.CreateContainer(
                 container,
                 ContainerItem,
                 cancellationToken
@@ -127,6 +127,13 @@ public sealed class ServerHeliCrashSpawner : HeliCrashSpawner
         }
         else
         {
+            if (_configService.LoggingEnabled.Value)
+            {
+                _logger.LogInfo(
+                    $"Not spawning with loot! Unreachable={SpawnLocation.Unreachable.ToString()}"
+                );
+            }
+
             // Disable the loot crate game object
             container.transform.parent.gameObject.SetActive(false);
         }

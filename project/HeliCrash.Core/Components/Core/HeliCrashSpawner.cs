@@ -9,6 +9,7 @@ using JetBrains.Annotations;
 using SamSWAT.HeliCrash.ArysReloaded.Utils;
 using UnityEngine;
 using Logger = SamSWAT.HeliCrash.ArysReloaded.Utils.Logger;
+using Object = UnityEngine.Object;
 
 namespace SamSWAT.HeliCrash.ArysReloaded;
 
@@ -23,6 +24,8 @@ public abstract class HeliCrashSpawner(ConfigurationService configService, Logge
     {
         try
         {
+            await loadScreenTask;
+
             if (configService.LoggingEnabled.Value)
             {
                 logger.LogInfo("Spawning heli crash site");
@@ -41,10 +44,8 @@ public abstract class HeliCrashSpawner(ConfigurationService configService, Logge
             heliPrefab = await LoadPrefabAsync(heliBundlePath, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
-            await SpawnCrashSite(gameWorld, cancellationToken);
+            await SpawnCrashSite(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-
-            await loadScreenTask;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -53,15 +54,16 @@ public abstract class HeliCrashSpawner(ConfigurationService configService, Logge
         }
     }
 
-    protected abstract UniTask SpawnCrashSite(
-        GameWorld gameWorld,
-        CancellationToken cancellationToken = default
-    );
+    protected abstract UniTask SpawnCrashSite(CancellationToken cancellationToken = default);
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         if (_heliBundle != null)
         {
+            if (configService.LoggingEnabled.Value)
+            {
+                logger.LogInfo("Disposing HeliCrash bundle");
+            }
             _heliBundle.Unload(true);
         }
     }
@@ -103,5 +105,27 @@ public abstract class HeliCrashSpawner(ConfigurationService configService, Logge
         requestedGo.SetActive(false);
 
         return requestedGo;
+    }
+
+    protected async UniTask<GameObject> InstantiateCrashSiteObject(
+        Vector3 position = default,
+        Vector3 rotation = default,
+        CancellationToken cancellationToken = default
+    )
+    {
+        AsyncInstantiateOperation<GameObject> asyncOperation = Object.InstantiateAsync(
+            heliPrefab,
+            position,
+            Quaternion.Euler(rotation)
+        );
+
+        while (!asyncOperation.isDone)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await UniTask.Yield(cancellationToken);
+        }
+
+        GameObject choppa = asyncOperation.Result[0];
+        return choppa;
     }
 }

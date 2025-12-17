@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Comfort.Common;
 using Cysharp.Threading.Tasks;
 using EFT;
-using EFT.Airdrop;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SamSWAT.HeliCrash.ArysReloaded.Models;
@@ -57,10 +56,7 @@ public class RaidLoadScreenPatch : ModulePatch
             string location = Singleton<GameWorld>.Instance.LocationId;
             LocationList crashLocationList = s_crashLocationService.GetCrashLocations(location);
 
-            bool crashAvailable =
-                crashLocationList.AsValueEnumerable().Any()
-                || location.ToLower() == "sandbox"
-                || LocationScene.GetAll<AirdropPoint>().AsValueEnumerable().Any();
+            bool crashAvailable = crashLocationList.AsValueEnumerable().Any();
 
             bool shouldSpawnCrash =
                 s_configService.SpawnAllCrashSites.Value
@@ -70,7 +66,7 @@ public class RaidLoadScreenPatch : ModulePatch
             {
                 if (s_configService.LoggingEnabled.Value)
                 {
-                    s_logger.LogInfo("Can spawn heli crash site, creating RaidLifetimeScope");
+                    s_logger.LogInfo("Can spawn heli crash site, creating RaidLifetimeScope...");
                 }
 
                 LifetimeScope scope = s_raidLifetimeScopeController.CreateScope();

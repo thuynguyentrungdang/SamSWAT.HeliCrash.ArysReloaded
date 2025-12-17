@@ -34,6 +34,7 @@ public class ApplicationLifetimeScope : LifetimeScope
         builder.Register<RaidLifetimeScopeController>(Lifetime.Singleton);
         builder.Register<RaidLoadScreenPatch>(Lifetime.Singleton);
         builder.Register<HeliCrashLocationService>(Lifetime.Singleton);
+        builder.Register<LootContainerFactory>(Lifetime.Singleton);
         builder.RegisterBuildCallback(container =>
         {
             container.Resolve<GetLocalePatch>().Enable();
