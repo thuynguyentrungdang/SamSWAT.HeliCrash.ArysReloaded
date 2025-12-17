@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(MSBuildThisFileDirectory)../../Fika.Build.props" />
   <PropertyGroup>
     <RootNamespace>SamSWAT.HeliCrash.ArysReloaded.Fika</RootNamespace>
     <AssemblyName>SamSWAT.HeliCrash.ArysReloaded.Fika</AssemblyName>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <FikaReleaseArchivePath>$(DistributionDir)$(SolutionName).FikaSync-v$(Version)-SPT$(TargetSptVersion).7z</FikaReleaseArchivePath>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -88,7 +88,7 @@
   </Target>
   <Target Name="CreateFikaSyncZip" AfterTargets="PostBuild">
     <Exec
-      Command="if not &quot;$(ConfigurationName)&quot;==&quot;Debug&quot; (&#xA;    cd /D &quot;$(SptBepInExPluginsDir)..\..\&quot;&#xA;    &quot;C:\Program Files\7-Zip\7z.exe&quot; a &quot;$(FikaReleaseArchivePath)&quot; &quot;BepInEx\plugins\$(SolutionName)\$(TargetFileName)&quot;&#xA;)"
+      Command="if not &quot;$(ConfigurationName)&quot;==&quot;Debug&quot; (&#xA;    cd /D &quot;$(SptBepInExPluginsDir)..\..\&quot;&#xA;    &quot;C:\Program Files\7-Zip\7z.exe&quot; a &quot;$(ReleaseArchivePath)&quot; &quot;BepInEx\plugins\$(SolutionName)\$(TargetFileName)&quot;&#xA;)"
     />
   </Target>
 </Project>
