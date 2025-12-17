@@ -15,7 +15,9 @@ public static class LifetimeScopeExtensions
     )
         where TScope : LifetimeScope
     {
-        var gameObject = new GameObject(childScopeName ?? "LifetimeScope (Child)");
+        var gameObject = new GameObject(
+            string.IsNullOrEmpty(childScopeName) ? "LifetimeScope (Child)" : childScopeName
+        );
         gameObject.SetActive(false);
         gameObject.transform.SetParent(parent, false);
 
