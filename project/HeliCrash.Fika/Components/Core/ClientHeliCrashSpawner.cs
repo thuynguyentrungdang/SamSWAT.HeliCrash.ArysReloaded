@@ -20,7 +20,6 @@ public sealed class ClientHeliCrashSpawner : HeliCrashSpawner
     private readonly Logger _logger;
     private readonly LootContainerFactory _lootContainerFactory;
 
-    private UniTaskCompletionSource<RequestHeliCrashPacket> _currentRequest;
     private RequestHeliCrashPacket _cachedPacket;
 
     public ClientHeliCrashSpawner(
@@ -34,21 +33,19 @@ public sealed class ClientHeliCrashSpawner : HeliCrashSpawner
         _configService = configService;
         _logger = logger;
         _lootContainerFactory = lootContainerFactory;
-
-        EventDispatcher<HeliCrashResponseEvent>.Subscribe(OnReceiveResponse);
-    }
-
-    public override void Dispose()
-    {
-        EventDispatcher<HeliCrashResponseEvent>.UnsubscribeAll();
-        base.Dispose();
     }
 
     protected override async UniTask<bool> ShouldSpawnCrashSite(
         CancellationToken cancellationToken = default
     )
     {
-        _cachedPacket = await RequestDataFromServer(cancellationToken);
+        using var requestHandler = new RequestHandler(_configService, _logger);
+
+        _cachedPacket = await requestHandler.HandleRequest(
+            timeoutSeconds: 300,
+            cancellationToken: cancellationToken
+        );
+
         return _cachedPacket.shouldSpawn;
     }
 
@@ -95,15 +92,43 @@ public sealed class ClientHeliCrashSpawner : HeliCrashSpawner
         choppa.SetActive(true);
     }
 
-    private async UniTask<RequestHeliCrashPacket> RequestDataFromServer(
-        CancellationToken cancellationToken = default
-    )
+    private class RequestHandler : IDisposable
     {
-        try
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        private readonly ConfigurationService _configService;
+        private readonly Logger _logger;
 
-            _currentRequest = new UniTaskCompletionSource<RequestHeliCrashPacket>();
+        private UniTaskCompletionSource<RequestHeliCrashPacket> _tcs;
+
+        public RequestHandler(ConfigurationService configService, Logger logger)
+        {
+            _configService = configService;
+            _logger = logger;
+
+            _tcs = new UniTaskCompletionSource<RequestHeliCrashPacket>();
+
+            EventDispatcher<HeliCrashResponseEvent>.Subscribe(OnReceiveResponse);
+        }
+
+        public void Dispose()
+        {
+            EventDispatcher<HeliCrashResponseEvent>.Unsubscribe(OnReceiveResponse);
+
+            UniTaskCompletionSource<RequestHeliCrashPacket> tcs = Interlocked.Exchange(
+                ref _tcs,
+                null
+            );
+
+            tcs?.TrySetCanceled();
+        }
+
+        public async UniTask<RequestHeliCrashPacket> HandleRequest(
+            int timeoutSeconds,
+            CancellationToken cancellationToken = default
+        )
+        {
+            UniTaskCompletionSource<RequestHeliCrashPacket> tcs = _tcs;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             var requestPacket = new RequestHeliCrashPacket();
 
@@ -118,43 +143,45 @@ public sealed class ClientHeliCrashSpawner : HeliCrashSpawner
             );
 
             (bool isTimeout, RequestHeliCrashPacket responsePacket) =
-                await _currentRequest.Task.TimeoutWithoutException(
-                    TimeSpan.FromSeconds(20),
+                await tcs.Task.TimeoutWithoutException(
+                    TimeSpan.FromSeconds(timeoutSeconds),
                     DelayType.Realtime,
                     taskCancellationTokenSource: cts
                 );
 
-            if (isTimeout)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!isTimeout)
             {
-                var timeoutException = new TimeoutException(
-                    "HeliCrash Fika Client request timed out waiting for response from the Fika Server!"
-                );
-                _currentRequest.TrySetException(timeoutException);
-                return await _currentRequest.Task;
+                return responsePacket;
             }
 
-            return responsePacket;
-        }
-        finally
-        {
-            _currentRequest = null;
-        }
-    }
-
-    private void OnReceiveResponse(ref HeliCrashResponseEvent responseEvent)
-    {
-        if (!_currentRequest.TrySetResult(responseEvent.packet))
-        {
-            _logger.LogError("Failed to set UniTaskCompletionSource result!");
-            _currentRequest.TrySetException(new InvalidPacketException(""));
-            return;
-        }
-
-        if (_configService.LoggingEnabled.Value)
-        {
-            _logger.LogInfo(
-                $"Setting UniTaskCompletionSource result = RequestHeliCrashPacket ({responseEvent.packet})"
+            throw new TimeoutException(
+                "Timed out while waiting for HeliCrash request from Fika Server! No helicopter crash site will be spawned!"
             );
+        }
+
+        private void OnReceiveResponse(ref HeliCrashResponseEvent responseEvent)
+        {
+            UniTaskCompletionSource<RequestHeliCrashPacket> tcs = _tcs;
+
+            if (tcs == null)
+            {
+                _logger.LogError(
+                    "Received response from Fika Server but the requesting CompletionSource is now invalid! Please report this error to the mod developer!"
+                );
+                return;
+            }
+
+            if (tcs.TrySetResult(responseEvent.packet))
+            {
+                if (_configService.LoggingEnabled.Value)
+                {
+                    _logger.LogInfo(
+                        $"Received response from Fika Server: ({responseEvent.packet})"
+                    );
+                }
+            }
         }
     }
 }

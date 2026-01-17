@@ -16,6 +16,7 @@ public class ServerHeliCrashSpawner : LocalHeliCrashSpawner
     private readonly Logger _logger;
 
     private bool _finishedSpawning;
+    private RequestHeliCrashPacket _cachedResponsePacket;
 
     public ServerHeliCrashSpawner(
         ConfigurationService configService,
@@ -33,8 +34,35 @@ public class ServerHeliCrashSpawner : LocalHeliCrashSpawner
 
     public override void Dispose()
     {
-        EventDispatcher<HeliCrashRequestEvent>.UnsubscribeAll();
+        EventDispatcher<HeliCrashRequestEvent>.Unsubscribe(OnReceiveRequest);
         base.Dispose();
+    }
+
+    public RequestHeliCrashPacket GetCachedResponse()
+    {
+        if (_cachedResponsePacket != null)
+        {
+            return _cachedResponsePacket;
+        }
+
+        if (ShouldSpawn!.Value)
+        {
+            _cachedResponsePacket = new RequestHeliCrashPacket(
+                ShouldSpawn.Value,
+                SpawnLocation.Position,
+                SpawnLocation.Rotation,
+                DoorNetIds,
+                ContainerItem != null,
+                ContainerItem,
+                ContainerNetId
+            );
+        }
+        else
+        {
+            _cachedResponsePacket = new RequestHeliCrashPacket(ShouldSpawn.Value);
+        }
+
+        return _cachedResponsePacket;
     }
 
     protected override async UniTask SpawnCrashSite(CancellationToken cancellationToken = default)

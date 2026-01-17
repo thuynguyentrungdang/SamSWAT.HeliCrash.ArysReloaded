@@ -3,7 +3,6 @@ using Fika.Core.Networking;
 using Fika.Core.Networking.LiteNetLib;
 using Fika.Core.Networking.LiteNetLib.Utils;
 using Fika.Core.Networking.Packets;
-using SamSWAT.HeliCrash.ArysReloaded.Models;
 using UnityEngine;
 
 namespace SamSWAT.HeliCrash.ArysReloaded.Fika.Models;
@@ -30,7 +29,7 @@ public class RequestHeliCrashPacket : INetSerializable, IRequestPacket
         packetType = PacketType.Request;
     }
 
-    private RequestHeliCrashPacket(
+    public RequestHeliCrashPacket(
         bool shouldSpawn,
         Vector3 position = default,
         Vector3 rotation = default,
@@ -99,27 +98,7 @@ public class RequestHeliCrashPacket : INetSerializable, IRequestPacket
         var requestEvent = HeliCrashRequestEvent.Create(
             (spawner, logger) =>
             {
-                RequestHeliCrashPacket responsePacket;
-
-                if (spawner.ShouldSpawn!.Value)
-                {
-                    Location spawnLocation = spawner.SpawnLocation;
-                    Item item = spawner.ContainerItem;
-
-                    responsePacket = new RequestHeliCrashPacket(
-                        spawner.ShouldSpawn.Value,
-                        spawnLocation.Position,
-                        spawnLocation.Rotation,
-                        spawner.DoorNetIds,
-                        item != null,
-                        item,
-                        spawner.ContainerNetId
-                    );
-                }
-                else
-                {
-                    responsePacket = new RequestHeliCrashPacket(spawner.ShouldSpawn.Value);
-                }
+                RequestHeliCrashPacket responsePacket = spawner.GetCachedResponse();
 
                 if (logger != null)
                 {
